@@ -39,4 +39,4 @@ Run the script using the following command:
 
   ```
 
-> Replace dev with your AWS profile name.    
+**Replace dev with your AWS profile name.**
