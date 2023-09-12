@@ -27,13 +27,23 @@ def get_queue_message_count(session, queue_url):
     )
     return int(response['Attributes']['ApproximateNumberOfMessages'])
 
+def get_aws_account_details(session):
+    sts_client = session.client('sts')
+    response = sts_client.get_caller_identity()
+    return {
+        "Account": response['Account'],
+        "Arn": response['Arn'],
+        "UserId": response['UserId']
+    }
+
 def send_email(smtp_server, smtp_port, smtp_username, smtp_password, sender_email, recipient_email, subject, body, attachment=None):
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = recipient_email
     msg['Subject'] = subject
 
-    msg.attach(MIMEText(body, 'plain'))
+    text = MIMEText(body, 'html')
+    msg.attach(text)
 
     if attachment:
         with open(attachment, 'rb') as file:
@@ -59,13 +69,55 @@ if __name__ == "__main__":
     session = boto3.Session(profile_name=args.profile)
 
     queues = list_queues(session)
+    account_details = get_aws_account_details(session)
 
     if queues:
-        message = "Queues and Their Message Counts:\n\n"
+        message = f"""\
+        <html>
+          <body>
+            <h2>AWS Account Details:</h2>
+            <table border="1">
+              <tr>
+                <th>Detail</th>
+                <th>Value</th>
+              </tr>
+              <tr>
+                <td>Account</td>
+                <td>{account_details['Account']}</td>
+              </tr>
+              <tr>
+                <td>Arn</td>
+                <td>{account_details['Arn']}</td>
+              </tr>
+              <tr>
+                <td>User ID</td>
+                <td>{account_details['UserId']}</td>
+              </tr>
+            </table>
+            <h2>Queues and Their Message Counts:</h2>
+            <table border="1">
+              <tr>
+                <th>Queue URL</th>
+                <th>Queue Name</th>
+                <th>Message Count</th>
+              </tr>
+        """
+
         for queue_url in queues:
-            message += f"Queue URL: {queue_url}\n"
-            message += f"Queue Name: {queue_url.split('/')[-1]}\n"
-            message += f"Message Count: {get_queue_message_count(session, queue_url)}\n\n"
+            message += f"""
+              <tr>
+                <td>{queue_url}</td>
+                <td>{queue_url.split('/')[-1]}</td>
+                <td>{get_queue_message_count(session, queue_url)}</td>
+              </tr>
+            """
+        
+        message += """\
+            </table>
+            <p>Thanks and Regards,<br>Naganjaneyulu G</p>
+          </body>
+        </html>
+        """
 
         send_email(
             smtp_server=os.getenv('SMTP_SERVER'),
@@ -75,7 +127,8 @@ if __name__ == "__main__":
             sender_email=os.getenv('SENDER_EMAIL'),
             recipient_email=os.getenv('RECIPIENT_EMAIL'),
             subject='Queue Message Count Report',
-            body=message
+            body=message,
+            attachment=None  # Add attachment if needed
         )
     else:
         print("No Queues found in the AWS account.")
