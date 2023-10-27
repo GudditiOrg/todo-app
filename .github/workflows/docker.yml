@@ -1,0 +1,38 @@
+name: buildon
+on:
+  push:
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-20.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build an image from Dockerfile
+        run: |
+          docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
+      - run: wget https://github.com/aquasecurity/trivy/blob/main/contrib/html.tpl
+      - name: Run Trivy vulnerability scanner for npm dependencies
+        id: trivy-scan-npm
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+          format: 'template'
+          template: '@./html.tpl'
+          vuln-type: 'library,os'
+          output: 'Trivy-Scan.html'  # Redirect output to a file
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v3
+        with:
+          name: Trivy-Scan
+          path: Trivy-Scan.html
+          retention-days: 1
+      - name: Set Step Summary
+        run: |
+      - name: Set Step Summary
+        run: |
+          summary=$(cat Trivy-Scan.html)
+          echo "<details style='font-size: 5px;'><summary>Trivy Scan Summary</summary>$summary</details>" >> $GITHUB_STEP_SUMMARY
