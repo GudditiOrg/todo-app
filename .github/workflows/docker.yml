@@ -1,38 +1,22 @@
-name: buildon
 on:
   push:
+permissions:
+  contents: read
+  actions: read
+  checks: write
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-20.04
-    permissions:
-      contents: write
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3     # checkout the repo
+      - run: npm ci                   # install packages
+      - run: npm test                 # run tests (configured to use jest-junit reporter)
 
-      - name: Build an image from Dockerfile
-        run: |
-          docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
-      - run: wget https://github.com/aquasecurity/trivy/blob/main/contrib/html.tpl
-      - name: Run Trivy vulnerability scanner for npm dependencies
-        id: trivy-scan-npm
-        uses: aquasecurity/trivy-action@master
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()    # run this step even if previous step failed
         with:
-          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
-          format: 'template'
-          template: '@./html.tpl'
-          vuln-type: 'library,os'
-          output: 'Trivy-Scan.html'  # Redirect output to a file
-      - name: 'Upload Artifact'
-        uses: actions/upload-artifact@v3
-        with:
-          name: Trivy-Scan
-          path: Trivy-Scan.html
-          retention-days: 1
-      - name: Set Step Summary
-        run: |
-      - name: Set Step Summary
-        run: |
-          summary=$(cat Trivy-Scan.html)
-          echo "<details style='font-size: 5px;'><summary>Trivy Scan Summary</summary>$summary</details>" >> $GITHUB_STEP_SUMMARY
+          name: JEST Tests            # Name of the check run which will be created
+          path: reports/jest-*.xml    # Path to test results
+          reporter: jest-junit        # Format of test results
